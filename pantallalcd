@@ -1,0 +1,76 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
+
+// Conexión al HC-06
+SoftwareSerial bluetooth(2, 3); // RX, TX
+
+// Dirección I2C del LCD (ajusta si es necesario)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Variables para manejar el texto
+String inputText = "";
+String currentText = "";
+bool readyToScroll = false;
+int scrollIndex = 0;
+unsigned long previousMillis = 0;
+const long scrollInterval = 400;
+
+void setup() {
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Esperando texto");
+
+  // Inicializa comunicación USB y Bluetooth
+  Serial.begin(9600);
+  bluetooth.begin(9600);
+}
+
+void loop() {
+  // Leer desde Monitor Serial (USB)
+  if (Serial.available()) {
+    char c = Serial.read();
+    procesarCaracter(c);
+  }
+
+  // Leer desde Bluetooth (HC-06)
+  if (bluetooth.available()) {
+    char c = bluetooth.read();
+    procesarCaracter(c);
+  }
+
+  // Hacer scroll si es necesario
+  if (readyToScroll) {
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= scrollInterval) {
+      previousMillis = currentMillis;
+      scrollIndex++;
+      if (scrollIndex + 16 > currentText.length()) {
+        scrollIndex = 0;
+      }
+
+      lcd.setCursor(0, 0);
+      lcd.print(currentText.substring(scrollIndex, scrollIndex + 16));
+    }
+  }
+}
+
+// Función para manejar entrada de texto desde USB o BT
+void procesarCaracter(char c) {
+  if (c == '\n' || c == '\r') {
+    if (inputText.length() > 0) {
+      lcd.clear();
+      currentText = inputText;
+      inputText = "";
+      scrollIndex = 0;
+      readyToScroll = currentText.length() > 16;
+
+      lcd.setCursor(0, 0);
+      lcd.print(currentText.substring(0, 16));
+      previousMillis = millis();
+    }
+  } else {
+    inputText += c;
+  }
+}
